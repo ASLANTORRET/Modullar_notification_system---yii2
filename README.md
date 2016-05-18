@@ -1,102 +1,103 @@
-Yii 2 Basic Project Template
+RGK Notification System
 ============================
 
-Yii 2 Basic Project Template is a skeleton [Yii 2](http://www.yiiframework.com/) application best for
-rapidly creating small projects.
-
-The template contains the basic features including user login/logout and a contact page.
-It includes all commonly used configurations that would allow you to focus on adding new
-features to your application.
-
-[![Latest Stable Version](https://poser.pugx.org/yiisoft/yii2-app-basic/v/stable.png)](https://packagist.org/packages/yiisoft/yii2-app-basic)
-[![Total Downloads](https://poser.pugx.org/yiisoft/yii2-app-basic/downloads.png)](https://packagist.org/packages/yiisoft/yii2-app-basic)
-[![Build Status](https://travis-ci.org/yiisoft/yii2-app-basic.svg?branch=master)](https://travis-ci.org/yiisoft/yii2-app-basic)
-
-DIRECTORY STRUCTURE
--------------------
-
-      assets/             contains assets definition
-      commands/           contains console commands (controllers)
-      config/             contains application configurations
-      controllers/        contains Web controller classes
-      mail/               contains view files for e-mails
-      models/             contains model classes
-      runtime/            contains files generated during runtime
-      tests/              contains various tests for the basic application
-      vendor/             contains dependent 3rd-party packages
-      views/              contains view files for the Web application
-      web/                contains the entry script and Web resources
-
-
-
-REQUIREMENTS
+ТЕРМИНОЛОГИЯ
 ------------
 
-The minimum requirement by this project template that your Web server supports PHP 5.4.0.
+Инициатор уведомления - пользователь, который запускает событие при триггере из модели.
+Inbox - класс, который содержит все отправленные уведомления.
+Код события - идентификатор события в формате Имя_класса::событие
+Код уведомления - название исполняемой функции класса Scripts
 
 
-INSTALLATION
+
+МОДУЛИ
 ------------
 
-### Install from an Archive File
+Для регистрации и авторизации использовал 'dektrium/yii2-user'.
 
-Extract the archive file downloaded from [yiiframework.com](http://www.yiiframework.com/download/) to
-a directory named `basic` that is directly under the Web root.
 
-Set cookie validation key in `config/web.php` file to some random secret string:
+ИНСТРУКЦИЯ
+------------
+
+### Подключение новой модели к системе уведомлений
+
+1) В параметрах проекта необходимо прописать название класса
 
 ```php
-'request' => [
-    // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
-    'cookieValidationKey' => '<secret random string goes here>',
-],
+ // допустимые вставки событий
+ 
+    'notification_system' => [
+		...
+        'class_to_attach' => ['Articles', 'User', 'Profile']
+    ]
 ```
+2) Создать новое уведомление
+2.1. Создать обработчик события внутри модели ( вызвать метод 'callNotification' класса 'Notifications')
 
-You can then access the application through the following URL:
+Пример: 
+```php
+	const EVENT_AFTER_CREATE = 'afterCreate';
 
-~~~
-http://localhost/basic/web/
-~~~
+    public function init()
+    {
+        $this->on(self::EVENT_AFTER_CREATE, ['app\models\Notifications', 'callNotification'], 'Articles::EVENT_AFTER_CREATE');
+    }
+```	
+2.2. Прописать триггер в нужном месте, передать instance новой модели в качестве параметра.
 
+Пример:
 
-### Install via Composer
+```php
+	$event = new ArticleEvent();
+    $event->setArticle($model);
 
-If you do not have [Composer](http://getcomposer.org/), you may install it by following the instructions
-at [getcomposer.org](http://getcomposer.org/doc/00-intro.md#installation-nix).
-
-You can then install this project template using the following command:
-
-~~~
-php composer.phar global require "fxp/composer-asset-plugin:~1.1.1"
-php composer.phar create-project --prefer-dist --stability=dev yiisoft/yii2-app-basic basic
-~~~
-
-Now you should be able to access the application through the following URL, assuming `basic` is the directory
-directly under the Web root.
-
-~~~
-http://localhost/basic/web/
-~~~
+    $model->trigger(Articles::EVENT_AFTER_CREATE, $event);
+```
+			
+2.3. Перейти в "notifications/create"	
+2.4. Выбрать доступное событие новой модели
+2.5. Создать событие заполнив необходимые поля (Заголовок, Текст, Отправитель, Тип, Получатель)
 
 
-CONFIGURATION
+### Создание новых типов уведомлений
+
+1) В классе 'Scripts' создаем новый protected фунцию, релизуем логику.
+ Пример:
+ 
+ ```php
+protected function email( $contact, $content){
+
+       $mailer = \Yii::$app->mailer;
+
+       $to = $contact;
+       $subject = $content[0];
+       $text = $content[1];
+
+       $sender = isset(\Yii::$app->params['adminEmail']) ? \Yii::$app->params['adminEmail'] : 'no-reply@example.com';
+
+       $mailer->compose()
+           ->setFrom($sender)
+           ->setTo($to)
+           ->setSubject($subject)
+           ->setTextBody($text)
+           ->setHtmlBody('<b>' . $text . '</b>')
+           ->send();
+    } 
+	
+```
+2) Переходим в notifications-types/index
+3) Заполняем поля() и Создаем.
+
+
+РАЗРАБОТКА
 -------------
 
-### Database
+Потратил на разработку примерно 10 часов. Когда будет время напишу тесты под функционал. Резюме: https://hh.kz/resume/d794671aff0314fa4b0039ed1f66786e383237
 
-Edit the file `config/db.php` with real data, for example:
+**ПРИМЕЧАНИЯ:**
+- Инициатор уведомления не может получить уведомление. Например: если админ создал новую статью, то он не получает уведомление о новой статье.
 
-```php
-return [
-    'class' => 'yii\db\Connection',
-    'dsn' => 'mysql:host=localhost;dbname=yii2basic',
-    'username' => 'root',
-    'password' => '1234',
-    'charset' => 'utf8',
-];
-```
+- Если указано, что отправитель user1 и получатели все пользователи, user1 тоже получает уведомление. (если user1 не является инициатором уведомления).
 
-**NOTES:**
-- Yii won't create the database for you, this has to be done manually before you can access it.
-- Check and edit the other files in the `config/` directory to customize your application as required.
-- Refer to the README in the `tests` directory for information specific to basic application tests.
+- Если пользователь не указал в параметрах данные соответствующего типа (например telegram номер), то для этого пользователя не отправляется уведомление.
