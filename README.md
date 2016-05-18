@@ -1,2 +1,0 @@
-# rgktask
-Basic notification system
